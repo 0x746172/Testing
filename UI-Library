@@ -1,0 +1,428 @@
+local UI = {}
+UI.__index = UI
+
+-- Configuration
+local CONFIG = {
+    WindowBgColor = Color3.fromRGB(32, 32, 32),
+    TitleBgColor = Color3.fromRGB(20, 20, 20),
+    ButtonColor = Color3.fromRGB(60, 60, 60),
+    ButtonHoverColor = Color3.fromRGB(80, 80, 80),
+    ButtonPressColor = Color3.fromRGB(100, 100, 100),
+    TextColor = Color3.fromRGB(255, 255, 255),
+    BorderColor = Color3.fromRGB(100, 100, 100),
+    Padding = 8,
+    ItemHeight = 28,
+    FontSize = 14,
+}
+
+function UI.new(title, defaultSize)
+    local self = setmetatable({}, UI)
+    
+    self.Title = title
+    self.Position = UDim2.new(0, 100, 0, 100)
+    self.Size = defaultSize or UDim2.new(0, 300, 0, 400)
+    self.IsOpen = true
+    self.IsDragging = false
+    self.DragStart = Vector2.new(0, 0)
+    self.PositionOffset = Vector2.new(0, 0)
+    self.CurrentY = CONFIG.Padding
+    self.ItemSpacing = 4
+    self.NextId = 0
+    
+    self:_createGui()
+    
+    return self
+end
+
+function UI:_createGui()
+    -- Main Window
+    self.Window = Instance.new("Frame")
+    self.Window.Name = self.Title
+    self.Window.Size = self.Size
+    self.Window.Position = self.Position
+    self.Window.BackgroundColor3 = CONFIG.WindowBgColor
+    self.Window.BorderColor3 = CONFIG.BorderColor
+    self.Window.BorderMode = Enum.BorderMode.Outline
+    self.Window.Parent = game:GetService("CoreGui")
+    
+    -- Title Bar
+    self.TitleBar = Instance.new("Frame")
+    self.TitleBar.Name = "TitleBar"
+    self.TitleBar.Size = UDim2.new(1, 0, 0, 30)
+    self.TitleBar.BackgroundColor3 = CONFIG.TitleBgColor
+    self.TitleBar.BorderSizePixel = 0
+    self.TitleBar.Parent = self.Window
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, -60, 1, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.TextColor3 = CONFIG.TextColor
+    titleLabel.TextSize = CONFIG.FontSize
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Text = self.Title
+    titleLabel.Parent = self.TitleBar
+    
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 8)
+    padding.Parent = titleLabel
+    
+    -- Close Button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Size = UDim2.new(0, 30, 1, 0)
+    closeBtn.Position = UDim2.new(1, -30, 0, 0)
+    closeBtn.BackgroundColor3 = CONFIG.ButtonColor
+    closeBtn.TextColor3 = CONFIG.TextColor
+    closeBtn.TextSize = CONFIG.FontSize
+    closeBtn.Text = "X"
+    closeBtn.Parent = self.TitleBar
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        self:Close()
+    end)
+    
+    -- Content Frame
+    self.Content = Instance.new("Frame")
+    self.Content.Name = "Content"
+    self.Content.Size = UDim2.new(1, 0, 1, -30)
+    self.Content.Position = UDim2.new(0, 0, 0, 30)
+    self.Content.BackgroundTransparency = 1
+    self.Content.BorderSizePixel = 0
+    self.Content.ClipsDescendants = true
+    self.Content.Parent = self.Window
+    
+    -- Drag functionality
+    self.TitleBar.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            self.IsDragging = true
+            self.DragStart = input.Position
+            self.PositionOffset = self.Window.AbsolutePosition
+        end
+    end)
+    
+    game:GetService("UserInputService").InputChanged:Connect(function(input, gameProcessed)
+        if self.IsDragging and input.UserInputType == Enum.UserInputType.Mouse then
+            local delta = input.Position - self.DragStart
+            self.Window.Position = UDim2.new(
+                0, self.PositionOffset.X + delta.X,
+                0, self.PositionOffset.Y + delta.Y
+            )
+        end
+    end)
+    
+    game:GetService("UserInputService").InputEnded:Connect(function(input, gameProcessed)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            self.IsDragging = false
+        end
+    end)
+end
+
+function UI:_getId()
+    self.NextId = self.NextId + 1
+    return tostring(self.NextId)
+end
+
+function UI:_addItem(item, height)
+    height = height or CONFIG.ItemHeight
+    item.Parent = self.Content
+    item.Position = UDim2.new(0, CONFIG.Padding, 0, self.CurrentY)
+    item.Size = UDim2.new(1, -CONFIG.Padding * 2, 0, height)
+    self.CurrentY = self.CurrentY + height + self.ItemSpacing
+    return item
+end
+
+-- Text Label
+function UI:Text(text)
+    local label = Instance.new("TextLabel")
+    label.Name = "Text_" .. self:_getId()
+    label.BackgroundTransparency = 1
+    label.TextColor3 = CONFIG.TextColor
+    label.TextSize = CONFIG.FontSize
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Text = text
+    
+    self:_addItem(label, 20)
+end
+
+-- Button
+function UI:Button(text, callback)
+    local button = Instance.new("TextButton")
+    button.Name = "Button_" .. self:_getId()
+    button.BackgroundColor3 = CONFIG.ButtonColor
+    button.TextColor3 = CONFIG.TextColor
+    button.TextSize = CONFIG.FontSize
+    button.Text = text
+    button.BorderSizePixel = 0
+    
+    local isHovered = false
+    
+    button.MouseEnter:Connect(function()
+        isHovered = true
+        button.BackgroundColor3 = CONFIG.ButtonHoverColor
+    end)
+    
+    button.MouseLeave:Connect(function()
+        isHovered = false
+        button.BackgroundColor3 = CONFIG.ButtonColor
+    end)
+    
+    button.MouseButton1Down:Connect(function()
+        button.BackgroundColor3 = CONFIG.ButtonPressColor
+    end)
+    
+    button.MouseButton1Up:Connect(function()
+        button.BackgroundColor3 = isHovered and CONFIG.ButtonHoverColor or CONFIG.ButtonColor
+        if callback then callback() end
+    end)
+    
+    self:_addItem(button)
+end
+
+-- Checkbox
+function UI:Checkbox(text, defaultValue, callback)
+    local container = Instance.new("Frame")
+    container.Name = "Checkbox_" .. self:_getId()
+    container.BackgroundTransparency = 1
+    container.BorderSizePixel = 0
+    
+    local checkbox = Instance.new("TextButton")
+    checkbox.Name = "Box"
+    checkbox.Size = UDim2.new(0, 20, 0, 20)
+    checkbox.Position = UDim2.new(0, 0, 0.5, -10)
+    checkbox.BackgroundColor3 = CONFIG.ButtonColor
+    checkbox.TextColor3 = CONFIG.TextColor
+    checkbox.TextSize = 12
+    checkbox.Text = ""
+    checkbox.BorderSizePixel = 0
+    checkbox.Parent = container
+    
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(1, -30, 1, 0)
+    label.Position = UDim2.new(0, 30, 0, 0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = CONFIG.TextColor
+    label.TextSize = CONFIG.FontSize
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Text = text
+    label.Parent = container
+    
+    local state = defaultValue or false
+    
+    local function updateCheckbox()
+        checkbox.Text = state and "✓" or ""
+        checkbox.BackgroundColor3 = state and CONFIG.ButtonPressColor or CONFIG.ButtonColor
+    end
+    
+    updateCheckbox()
+    
+    local function toggle()
+        state = not state
+        updateCheckbox()
+        if callback then callback(state) end
+    end
+    
+    checkbox.MouseButton1Click:Connect(toggle)
+    label.InputBegan:Connect(function(input, gameProcessed)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and not gameProcessed then
+            toggle()
+        end
+    end)
+    
+    self:_addItem(container)
+    
+    return {
+        GetValue = function() return state end,
+        SetValue = function(_, val) state = val updateCheckbox() end
+    }
+end
+
+-- Text Input
+function UI:Input(placeholder, callback)
+    local input = Instance.new("TextBox")
+    input.Name = "Input_" .. self:_getId()
+    input.BackgroundColor3 = CONFIG.ButtonColor
+    input.TextColor3 = CONFIG.TextColor
+    input.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    input.PlaceholderText = placeholder
+    input.TextSize = CONFIG.FontSize
+    input.BorderSizePixel = 0
+    input.ClearTextOnFocus = false
+    
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 8)
+    padding.PaddingRight = UDim.new(0, 8)
+    padding.Parent = input
+    
+    input.FocusLost:Connect(function(enterPressed)
+        if enterPressed and callback then
+            callback(input.Text)
+        end
+    end)
+    
+    self:_addItem(input)
+    
+    return input
+end
+
+-- Slider
+function UI:Slider(min, max, defaultValue, callback)
+    local container = Instance.new("Frame")
+    container.Name = "Slider_" .. self:_getId()
+    container.BackgroundTransparency = 1
+    container.BorderSizePixel = 0
+    
+    local background = Instance.new("Frame")
+    background.Name = "Background"
+    background.Size = UDim2.new(1, 0, 0, 4)
+    background.Position = UDim2.new(0, 0, 0.5, -2)
+    background.BackgroundColor3 = CONFIG.ButtonColor
+    background.BorderSizePixel = 0
+    background.Parent = container
+    
+    local fill = Instance.new("Frame")
+    fill.Name = "Fill"
+    fill.BackgroundColor3 = CONFIG.ButtonPressColor
+    fill.BorderSizePixel = 0
+    fill.Parent = background
+    
+    local thumb = Instance.new("TextButton")
+    thumb.Name = "Thumb"
+    thumb.Size = UDim2.new(0, 12, 0, 12)
+    thumb.BackgroundColor3 = CONFIG.ButtonHoverColor
+    thumb.BorderSizePixel = 0
+    thumb.Text = ""
+    thumb.Parent = container
+    
+    local value = defaultValue or min
+    local isDragging = false
+    
+    local function updateSlider(newValue)
+        value = math.clamp(newValue, min, max)
+        local percent = (value - min) / (max - min)
+        thumb.Position = UDim2.new(percent, -6, 0.5, -6)
+        fill.Size = UDim2.new(percent, 0, 1, 0)
+        if callback then callback(value) end
+    end
+    
+    updateSlider(value)
+    
+    thumb.MouseButton1Down:Connect(function()
+        isDragging = true
+    end)
+    
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if isDragging and input.UserInputType == Enum.UserInputType.Mouse then
+            local mousePos = input.Position.X
+            local containerPos = container.AbsolutePosition.X
+            local containerSize = container.AbsoluteSize.X
+            local percent = math.clamp((mousePos - containerPos) / containerSize, 0, 1)
+            local newValue = min + (max - min) * percent
+            updateSlider(newValue)
+        end
+    end)
+    
+    game:GetService("UserInputService").InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            isDragging = false
+        end
+    end)
+    
+    self:_addItem(container)
+    
+    return {
+        GetValue = function() return value end,
+        SetValue = function(_, val) updateSlider(val) end
+    }
+end
+
+-- Separator
+function UI:Separator()
+    local separator = Instance.new("Frame")
+    separator.Name = "Separator_" .. self:_getId()
+    separator.Size = UDim2.new(1, 0, 0, 1)
+    separator.BackgroundColor3 = CONFIG.BorderColor
+    separator.BorderSizePixel = 0
+    
+    self:_addItem(separator, 1)
+end
+
+-- Spacing
+function UI:Spacing(height)
+    local spacer = Instance.new("Frame")
+    spacer.Name = "Spacer_" .. self:_getId()
+    spacer.BackgroundTransparency = 1
+    spacer.BorderSizePixel = 0
+    
+    self:_addItem(spacer, height or 10)
+end
+
+-- Group/Section
+function UI:Group(title)
+    local group = Instance.new("Frame")
+    group.Name = "Group_" .. self:_getId()
+    group.BackgroundColor3 = CONFIG.ButtonColor
+    group.BorderSizePixel = 0
+    
+    local groupTitle = Instance.new("TextLabel")
+    groupTitle.Name = "GroupTitle"
+    groupTitle.Size = UDim2.new(1, 0, 0, 20)
+    groupTitle.BackgroundColor3 = CONFIG.TitleBgColor
+    groupTitle.BorderSizePixel = 0
+    groupTitle.TextColor3 = CONFIG.TextColor
+    groupTitle.TextSize = CONFIG.FontSize
+    groupTitle.TextXAlignment = Enum.TextXAlignment.Left
+    groupTitle.Text = title
+    
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 8)
+    padding.Parent = groupTitle
+    
+    groupTitle.Parent = group
+    
+    local content = Instance.new("Frame")
+    content.Name = "Content"
+    content.Size = UDim2.new(1, 0, 1, -20)
+    content.Position = UDim2.new(0, 0, 0, 20)
+    content.BackgroundTransparency = 1
+    content.BorderSizePixel = 0
+    content.ClipsDescendants = true
+    content.Parent = group
+    
+    self:_addItem(group, 100)
+    
+    return {
+        AddText = function(_, text)
+            local label = Instance.new("TextLabel")
+            label.BackgroundTransparency = 1
+            label.TextColor3 = CONFIG.TextColor
+            label.TextSize = CONFIG.FontSize
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.Text = text
+            label.Size = UDim2.new(1, -8, 0, 20)
+            label.Parent = content
+        end
+    }
+end
+
+-- Close window
+function UI:Close()
+    self.IsOpen = false
+    self.Window:Destroy()
+end
+
+-- Show/Hide
+function UI:SetVisible(visible)
+    self.Window.Visible = visible
+end
+
+-- Change config
+function UI:SetConfig(newConfig)
+    for key, value in pairs(newConfig) do
+        CONFIG[key] = value
+    end
+end
+
+return UI
