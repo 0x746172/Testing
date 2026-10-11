@@ -25,7 +25,7 @@ function UI.new(title, defaultSize)
     self.IsDragging = false
     self.DragStart = Vector2.new(0, 0)
     self.PositionOffset = Vector2.new(0, 0)
-    self.CurrentY = CONFIG.Padding
+    self.CurrentY = 30
     self.ItemSpacing = 4
     self.NextId = 0
     
@@ -43,7 +43,25 @@ function UI:_createGui()
     self.Window.BackgroundColor3 = CONFIG.WindowBgColor
     self.Window.BorderColor3 = CONFIG.BorderColor
     self.Window.BorderMode = Enum.BorderMode.Outline
-    self.Window.Parent = game:GetService("CoreGui")
+    self.Window.ZIndex = 100
+    
+    -- Try to use ScreenGui for better compatibility
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ImGuiScreen"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    pcall(function()
+        screenGui.Parent = game:GetService("CoreGui")
+    end)
+    
+    if not screenGui.Parent then
+        pcall(function()
+            screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+        end)
+    end
+    
+    self.Window.Parent = screenGui
     
     -- Title Bar
     self.TitleBar = Instance.new("Frame")
@@ -51,6 +69,7 @@ function UI:_createGui()
     self.TitleBar.Size = UDim2.new(1, 0, 0, 30)
     self.TitleBar.BackgroundColor3 = CONFIG.TitleBgColor
     self.TitleBar.BorderSizePixel = 0
+    self.TitleBar.ZIndex = 101
     self.TitleBar.Parent = self.Window
     
     local titleLabel = Instance.new("TextLabel")
@@ -61,6 +80,7 @@ function UI:_createGui()
     titleLabel.TextSize = CONFIG.FontSize
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Text = self.Title
+    titleLabel.ZIndex = 102
     titleLabel.Parent = self.TitleBar
     
     local padding = Instance.new("UIPadding")
@@ -76,13 +96,14 @@ function UI:_createGui()
     closeBtn.TextColor3 = CONFIG.TextColor
     closeBtn.TextSize = CONFIG.FontSize
     closeBtn.Text = "X"
+    closeBtn.ZIndex = 102
     closeBtn.Parent = self.TitleBar
     
     closeBtn.MouseButton1Click:Connect(function()
         self:Close()
     end)
     
-    -- Content Frame
+    -- Content Frame (Scrollable)
     self.Content = Instance.new("Frame")
     self.Content.Name = "Content"
     self.Content.Size = UDim2.new(1, 0, 1, -30)
@@ -90,6 +111,7 @@ function UI:_createGui()
     self.Content.BackgroundTransparency = 1
     self.Content.BorderSizePixel = 0
     self.Content.ClipsDescendants = true
+    self.Content.ZIndex = 100
     self.Content.Parent = self.Window
     
     -- Drag functionality
@@ -126,10 +148,17 @@ end
 
 function UI:_addItem(item, height)
     height = height or CONFIG.ItemHeight
-    item.Parent = self.Content
-    item.Position = UDim2.new(0, CONFIG.Padding, 0, self.CurrentY)
     item.Size = UDim2.new(1, -CONFIG.Padding * 2, 0, height)
+    item.Position = UDim2.new(0, CONFIG.Padding, 0, self.CurrentY)
+    item.ZIndex = 100
+    item.Parent = self.Content
     self.CurrentY = self.CurrentY + height + self.ItemSpacing
+    
+    -- Auto-expand window if content exceeds it
+    if self.CurrentY > self.Window.Size.Y.Offset then
+        self.Window.Size = UDim2.new(self.Window.Size.X.Scale, self.Window.Size.X.Offset, 0, self.CurrentY + 20)
+    end
+    
     return item
 end
 
@@ -142,6 +171,7 @@ function UI:Text(text)
     label.TextSize = CONFIG.FontSize
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Text = text
+    label.ZIndex = 100
     
     self:_addItem(label, 20)
 end
@@ -155,6 +185,8 @@ function UI:Button(text, callback)
     button.TextSize = CONFIG.FontSize
     button.Text = text
     button.BorderSizePixel = 0
+    button.ZIndex = 100
+    button.AutoButtonColor = false
     
     local isHovered = false
     
@@ -186,6 +218,7 @@ function UI:Checkbox(text, defaultValue, callback)
     container.Name = "Checkbox_" .. self:_getId()
     container.BackgroundTransparency = 1
     container.BorderSizePixel = 0
+    container.ZIndex = 100
     
     local checkbox = Instance.new("TextButton")
     checkbox.Name = "Box"
@@ -196,6 +229,8 @@ function UI:Checkbox(text, defaultValue, callback)
     checkbox.TextSize = 12
     checkbox.Text = ""
     checkbox.BorderSizePixel = 0
+    checkbox.ZIndex = 100
+    checkbox.AutoButtonColor = false
     checkbox.Parent = container
     
     local label = Instance.new("TextLabel")
@@ -207,6 +242,7 @@ function UI:Checkbox(text, defaultValue, callback)
     label.TextSize = CONFIG.FontSize
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Text = text
+    label.ZIndex = 100
     label.Parent = container
     
     local state = defaultValue or false
@@ -235,7 +271,7 @@ function UI:Checkbox(text, defaultValue, callback)
     
     return {
         GetValue = function() return state end,
-        SetValue = function(_, val) state = val updateCheckbox() end
+        SetValue = function(_, val) state = val; updateCheckbox() end
     }
 end
 
@@ -250,6 +286,7 @@ function UI:Input(placeholder, callback)
     input.TextSize = CONFIG.FontSize
     input.BorderSizePixel = 0
     input.ClearTextOnFocus = false
+    input.ZIndex = 100
     
     local padding = Instance.new("UIPadding")
     padding.PaddingLeft = UDim.new(0, 8)
@@ -273,6 +310,7 @@ function UI:Slider(min, max, defaultValue, callback)
     container.Name = "Slider_" .. self:_getId()
     container.BackgroundTransparency = 1
     container.BorderSizePixel = 0
+    container.ZIndex = 100
     
     local background = Instance.new("Frame")
     background.Name = "Background"
@@ -280,12 +318,14 @@ function UI:Slider(min, max, defaultValue, callback)
     background.Position = UDim2.new(0, 0, 0.5, -2)
     background.BackgroundColor3 = CONFIG.ButtonColor
     background.BorderSizePixel = 0
+    background.ZIndex = 100
     background.Parent = container
     
     local fill = Instance.new("Frame")
     fill.Name = "Fill"
     fill.BackgroundColor3 = CONFIG.ButtonPressColor
     fill.BorderSizePixel = 0
+    fill.ZIndex = 101
     fill.Parent = background
     
     local thumb = Instance.new("TextButton")
@@ -294,6 +334,8 @@ function UI:Slider(min, max, defaultValue, callback)
     thumb.BackgroundColor3 = CONFIG.ButtonHoverColor
     thumb.BorderSizePixel = 0
     thumb.Text = ""
+    thumb.ZIndex = 102
+    thumb.AutoButtonColor = false
     thumb.Parent = container
     
     local value = defaultValue or min
@@ -342,9 +384,9 @@ end
 function UI:Separator()
     local separator = Instance.new("Frame")
     separator.Name = "Separator_" .. self:_getId()
-    separator.Size = UDim2.new(1, 0, 0, 1)
     separator.BackgroundColor3 = CONFIG.BorderColor
     separator.BorderSizePixel = 0
+    separator.ZIndex = 100
     
     self:_addItem(separator, 1)
 end
@@ -355,74 +397,20 @@ function UI:Spacing(height)
     spacer.Name = "Spacer_" .. self:_getId()
     spacer.BackgroundTransparency = 1
     spacer.BorderSizePixel = 0
+    spacer.ZIndex = 100
     
     self:_addItem(spacer, height or 10)
-end
-
--- Group/Section
-function UI:Group(title)
-    local group = Instance.new("Frame")
-    group.Name = "Group_" .. self:_getId()
-    group.BackgroundColor3 = CONFIG.ButtonColor
-    group.BorderSizePixel = 0
-    
-    local groupTitle = Instance.new("TextLabel")
-    groupTitle.Name = "GroupTitle"
-    groupTitle.Size = UDim2.new(1, 0, 0, 20)
-    groupTitle.BackgroundColor3 = CONFIG.TitleBgColor
-    groupTitle.BorderSizePixel = 0
-    groupTitle.TextColor3 = CONFIG.TextColor
-    groupTitle.TextSize = CONFIG.FontSize
-    groupTitle.TextXAlignment = Enum.TextXAlignment.Left
-    groupTitle.Text = title
-    
-    local padding = Instance.new("UIPadding")
-    padding.PaddingLeft = UDim.new(0, 8)
-    padding.Parent = groupTitle
-    
-    groupTitle.Parent = group
-    
-    local content = Instance.new("Frame")
-    content.Name = "Content"
-    content.Size = UDim2.new(1, 0, 1, -20)
-    content.Position = UDim2.new(0, 0, 0, 20)
-    content.BackgroundTransparency = 1
-    content.BorderSizePixel = 0
-    content.ClipsDescendants = true
-    content.Parent = group
-    
-    self:_addItem(group, 100)
-    
-    return {
-        AddText = function(_, text)
-            local label = Instance.new("TextLabel")
-            label.BackgroundTransparency = 1
-            label.TextColor3 = CONFIG.TextColor
-            label.TextSize = CONFIG.FontSize
-            label.TextXAlignment = Enum.TextXAlignment.Left
-            label.Text = text
-            label.Size = UDim2.new(1, -8, 0, 20)
-            label.Parent = content
-        end
-    }
 end
 
 -- Close window
 function UI:Close()
     self.IsOpen = false
-    self.Window:Destroy()
+    self.Window.Parent:Destroy()
 end
 
 -- Show/Hide
 function UI:SetVisible(visible)
     self.Window.Visible = visible
-end
-
--- Change config
-function UI:SetConfig(newConfig)
-    for key, value in pairs(newConfig) do
-        CONFIG[key] = value
-    end
 end
 
 return UI
